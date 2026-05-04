@@ -8,6 +8,7 @@ API docs: https://api.heulegal.com/v1
 License: MIT
 """
 
+import io
 import json
 import os
 import re
@@ -15,6 +16,7 @@ import traceback
 from pathlib import Path
 
 import httpx
+from pypdf import PdfReader
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -83,6 +85,75 @@ def _check_config() -> str | None:
 def _safe_filename(name: str) -> str:
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("_")
     return name or "document"
+
+
+DEFAULT_MAX_PAGES = 100
+
+
+def _parse_pages_spec(spec: str, total_pages: int) -> list[int]:
+    """Parse '1-3', '5', '1,3,5', '1-3,7' into a sorted list of page numbers (1-indexed).
+
+    Out-of-range pages are silently clamped/dropped. Empty result raises ValueError."""
+    if not spec or not spec.strip():
+        raise ValueError("Empty pages spec")
+    pages: set[int] = set()
+    for raw in spec.split(","):
+        part = raw.strip()
+        if not part:
+            continue
+        if "-" in part:
+            a, b = part.split("-", 1)
+            try:
+                start = max(1, int(a.strip()))
+                end = min(total_pages, int(b.strip()))
+            except ValueError:
+                raise ValueError(f"Invalid range '{part}'")
+            if start <= end:
+                pages.update(range(start, end + 1))
+        else:
+            try:
+                n = int(part)
+            except ValueError:
+                raise ValueError(f"Invalid page number '{part}'")
+            if 1 <= n <= total_pages:
+                pages.add(n)
+    if not pages:
+        raise ValueError(f"No valid pages in spec '{spec}' (document has {total_pages} pages)")
+    return sorted(pages)
+
+
+def _extract_pdf_text(pdf_bytes: bytes, pages_spec: str | None, max_pages: int = DEFAULT_MAX_PAGES) -> dict:
+    """Extract text from PDF bytes. Returns dict with text + metadata."""
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    total = len(reader.pages)
+
+    if pages_spec:
+        wanted = _parse_pages_spec(pages_spec, total)
+        truncated = False
+    else:
+        if total > max_pages:
+            wanted = list(range(1, max_pages + 1))
+            truncated = True
+        else:
+            wanted = list(range(1, total + 1))
+            truncated = False
+
+    parts: list[str] = []
+    for page_num in wanted:
+        page = reader.pages[page_num - 1]
+        try:
+            text = page.extract_text() or ""
+        except Exception as e:
+            text = f"[error extracting text: {e}]"
+        parts.append(f"--- Page {page_num} ---\n{text.strip()}")
+
+    return {
+        "text": "\n\n".join(parts),
+        "pages_extracted": wanted,
+        "pages_total": total,
+        "truncated": truncated,
+        "max_pages_default": max_pages,
+    }
 
 
 @app.list_tools()
@@ -191,6 +262,38 @@ async def list_tools():
                 "type": "object",
                 "properties": {
                     "document_id": {"type": "string", "description": "ID del documento HEU"},
+                },
+                "required": ["document_id"],
+            },
+        ),
+        Tool(
+            name="read_heu_document",
+            description=(
+                "Legge il contenuto testuale di un documento HEU senza salvarlo su disco. "
+                "Scarica il PDF dall'API HEU, ne estrae il testo e lo restituisce direttamente "
+                "nella risposta — utile per riassumere, cercare clausole, confrontare contratti. "
+                "Default: tutte le pagine fino a un limite di 100. Per documenti più lunghi usa il parametro 'pages'."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "document_id": {"type": "string", "description": "ID del documento HEU"},
+                    "pages": {
+                        "type": "string",
+                        "description": "Range pagine: '1-3', '5', '1,3,5-7'. Default: tutte (max 100).",
+                    },
+                    "layout": {
+                        "type": "string",
+                        "enum": [
+                            "100", "200", "201", "202", "203", "204",
+                            "210", "211", "212", "213", "214",
+                            "220", "221", "222", "223", "224",
+                            "230", "231", "232", "233", "234",
+                        ],
+                        "description": "Codice layout (opzionale)",
+                    },
+                    "has_index": {"type": "boolean", "description": "Includi indice (opzionale)"},
+                    "has_footer": {"type": "boolean", "description": "Includi footer (opzionale)"},
                 },
                 "required": ["document_id"],
             },
@@ -311,6 +414,27 @@ async def list_tools():
             },
         ),
         Tool(
+            name="read_pdf_document",
+            description=(
+                "Legge il contenuto testuale di un PDF caricato senza salvarlo su disco. "
+                "Estrae il testo dal PDF e lo restituisce direttamente nella risposta. "
+                "Default: tutte le pagine fino a un limite di 100. "
+                "Nota: usa lo stesso endpoint di download dei documenti HEU; se l'API non lo supporta "
+                "per i PDF caricati, restituirà un errore esplicito."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "document_id": {"type": "string", "description": "ID del PDF caricato"},
+                    "pages": {
+                        "type": "string",
+                        "description": "Range pagine: '1-3', '5', '1,3,5-7'. Default: tutte (max 100).",
+                    },
+                },
+                "required": ["document_id"],
+            },
+        ),
+        Tool(
             name="prompt_pdf_document_signature",
             description=(
                 "Invia un sollecito di firma per un PDF. "
@@ -392,6 +516,74 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 retry = headers.get("retry-after")
                 hint = f"Sollecito già inviato di recente. Riprova tra {retry}s." if retry else "Sollecito già inviato di recente. Limite 1/24h."
             return _err(status, body, hint=hint)
+
+        if name == "read_heu_document":
+            doc_id = arguments["document_id"]
+            payload = {}
+            for k in ("layout", "has_index", "has_footer"):
+                if k in arguments and arguments[k] is not None:
+                    payload[k] = arguments[k]
+            kwargs = {"timeout": DOWNLOAD_TIMEOUT}
+            if payload:
+                kwargs["json"] = payload
+            status, body, _headers = _request("POST", f"/documents/{doc_id}/download", **kwargs)
+            if status != 200:
+                return _err(status, body)
+            if not isinstance(body, (bytes, bytearray)):
+                return _err(status, body, hint="Atteso PDF binario, ricevuto altro contenuto.")
+            try:
+                result = _extract_pdf_text(bytes(body), arguments.get("pages"))
+            except ValueError as e:
+                return _err(400, str(e), hint="Errore nel parametro 'pages'.")
+            except Exception as e:
+                return _err(500, f"Errore estrazione testo: {e}")
+            return _ok({
+                "document_id": doc_id,
+                "pages_total": result["pages_total"],
+                "pages_extracted": result["pages_extracted"],
+                "truncated": result["truncated"],
+                "note": (
+                    f"Mostrate solo le prime {result['max_pages_default']} pagine. "
+                    "Usa il parametro 'pages' per leggere oltre questo limite."
+                ) if result["truncated"] else None,
+                "text": result["text"],
+            })
+
+        if name == "read_pdf_document":
+            doc_id = arguments["document_id"]
+            # Try the documents/{id}/download endpoint (HEU may use a unified download path)
+            status, body, _headers = _request(
+                "POST", f"/documents/{doc_id}/download", timeout=DOWNLOAD_TIMEOUT
+            )
+            if status != 200:
+                return _err(
+                    status,
+                    body,
+                    hint=(
+                        "Il download diretto del contenuto dei PDF caricati potrebbe non essere "
+                        "supportato dall'API HEU. Se il problema persiste, segnala il caso d'uso "
+                        "al team HEU per richiedere un endpoint dedicato."
+                    ),
+                )
+            if not isinstance(body, (bytes, bytearray)):
+                return _err(status, body, hint="Atteso PDF binario, ricevuto altro contenuto.")
+            try:
+                result = _extract_pdf_text(bytes(body), arguments.get("pages"))
+            except ValueError as e:
+                return _err(400, str(e), hint="Errore nel parametro 'pages'.")
+            except Exception as e:
+                return _err(500, f"Errore estrazione testo: {e}")
+            return _ok({
+                "document_id": doc_id,
+                "pages_total": result["pages_total"],
+                "pages_extracted": result["pages_extracted"],
+                "truncated": result["truncated"],
+                "note": (
+                    f"Mostrate solo le prime {result['max_pages_default']} pagine. "
+                    "Usa il parametro 'pages' per leggere oltre questo limite."
+                ) if result["truncated"] else None,
+                "text": result["text"],
+            })
 
         if name == "download_heu_document_pdf":
             doc_id = arguments["document_id"]

@@ -10,13 +10,24 @@ MCP server (Model Context Protocol) per integrare l'[API HEU Legal](https://heul
 
 ## Funzionalità
 
-14 tool che coprono l'intera API HEU v1:
+16 tool che coprono l'intera API HEU v1 più funzioni di lettura del contenuto:
 
-**Documenti nativi HEU** — `list_heu_documents`, `get_heu_document`, `list_heu_document_placeholders`, `create_heu_document`, `prompt_heu_document_signature`, `download_heu_document_pdf`
+**Documenti nativi HEU** — `list_heu_documents`, `get_heu_document`, `list_heu_document_placeholders`, `create_heu_document`, `prompt_heu_document_signature`, `read_heu_document`, `download_heu_document_pdf`
 
-**PDF caricati** — `list_pdf_documents`, `get_pdf_document`, `list_pdf_document_signers`, `list_pdf_document_signer_placeholders`, `list_pdf_document_placeholders`, `create_pdf_document`, `prompt_pdf_document_signature`
+**PDF caricati** — `list_pdf_documents`, `get_pdf_document`, `list_pdf_document_signers`, `list_pdf_document_signer_placeholders`, `list_pdf_document_placeholders`, `create_pdf_document`, `read_pdf_document`, `prompt_pdf_document_signature`
 
 **Health** — `get_heu_health`
+
+### Lettura del contenuto vs Download
+
+Per ciascun tipo di documento esistono due modalità complementari:
+
+| Tool | Cosa fa | Quando usarlo |
+|------|---------|---------------|
+| `read_heu_document` / `read_pdf_document` | Estrae il testo del PDF e lo restituisce direttamente nella conversazione | Quando vuoi che Claude **legga** il documento (riassumere, cercare clausole, confrontare) |
+| `download_heu_document_pdf` | Salva il PDF su disco e ritorna il path | Quando ti serve il **file fisico** (archiviarlo, allegarlo a un'email, stamparlo) |
+
+I tool di lettura accettano un parametro opzionale `pages` per leggere solo un range (es. `"1-3"`, `"5"`, `"1,3,5-7"`). Senza `pages` leggono fino a un massimo di 100 pagine.
 
 ## Requisiti
 
@@ -101,6 +112,8 @@ Dopo aver configurato il MCP, chiedi a Claude:
 - *"Lista i miei template HEU"*
 - *"Mostrami i firmatari del PDF con id 26"*
 - *"Sollecita la firma del documento 15c587e0-1715-45c6-bf72-24bcb86c0f90"*
+- *"Riassumi il contratto con id ... e dimmi qual è la durata"* (usa `read_heu_document`)
+- *"Confronta i contratti X e Y, segnalami le differenze nelle clausole"*
 - *"Scarica il PDF del documento X con layout 220 e includi indice"*
 - *"Crea un nuovo PDF firmabile dal template 56 per mario.rossi@example.com"*
 

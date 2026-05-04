@@ -5,6 +5,15 @@ Tutte le modifiche significative a questo progetto vengono documentate in questo
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-05-04
+
+### Added
+- Nuovo tool `read_heu_document`: legge il contenuto testuale di un documento HEU senza salvarlo in locale. Ritorna il testo direttamente nella risposta MCP, abilitando casi d'uso come riassunto, ricerca clausole, confronto contratti.
+- Nuovo tool `read_pdf_document`: equivalente per i PDF caricati.
+- Supporto al parametro `pages` con range arbitrari (`"1-3"`, `"5"`, `"1,3,5-7"`).
+- Limite di sicurezza di 100 pagine quando non viene specificato il range, con notifica `truncated` nel payload.
+- Nuova dipendenza: `pypdf>=5.0.0` per l'estrazione testo.
+
 ## [0.1.4] - 2026-05-04
 
 ### Fixed

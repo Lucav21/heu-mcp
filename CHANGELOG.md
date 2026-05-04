@@ -5,6 +5,11 @@ Tutte le modifiche significative a questo progetto vengono documentate in questo
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-05-04
+
+### Changed
+- Aggiornato namespace MCP Registry e URL del repository al nuovo username GitHub `Lucav21`.
+
 ## [0.1.2] - 2026-05-04
 
 ### Added

@@ -1,4 +1,4 @@
-<!-- mcp-name: io.github.lucavisconti211-debug/heu-mcp -->
+<!-- mcp-name: io.github.lucav21/heu-mcp -->
 
 # HEU Legal MCP Server
 
@@ -35,7 +35,7 @@ pip install heu-mcp
 ### Da sorgenti
 
 ```bash
-git clone https://github.com/lucavisconti211-debug/heu-mcp.git
+git clone https://github.com/Lucav21/heu-mcp.git
 cd heu-mcp
 python3 -m venv venv
 source venv/bin/activate
@@ -121,7 +121,7 @@ Dopo aver configurato il MCP, chiedi a Claude:
 ## Sviluppo
 
 ```bash
-git clone https://github.com/lucavisconti211-debug/heu-mcp.git
+git clone https://github.com/Lucav21/heu-mcp.git
 cd heu-mcp
 python3 -m venv venv
 source venv/bin/activate

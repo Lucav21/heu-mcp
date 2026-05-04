@@ -10,11 +10,11 @@ MCP server (Model Context Protocol) per integrare l'[API HEU Legal](https://heul
 
 ## Funzionalità
 
-16 tool che coprono l'intera API HEU v1 più funzioni di lettura del contenuto:
+18 tool che coprono l'intera API HEU v1 più lettura contenuto e estrazione strutturata delle parti:
 
-**Documenti nativi HEU** — `list_heu_documents`, `get_heu_document`, `list_heu_document_placeholders`, `create_heu_document`, `prompt_heu_document_signature`, `read_heu_document`, `download_heu_document_pdf`
+**Documenti nativi HEU** — `list_heu_documents`, `get_heu_document`, `list_heu_document_placeholders`, `create_heu_document`, `prompt_heu_document_signature`, `extract_heu_document_parties`, `read_heu_document`, `download_heu_document_pdf`
 
-**PDF caricati** — `list_pdf_documents`, `get_pdf_document`, `list_pdf_document_signers`, `list_pdf_document_signer_placeholders`, `list_pdf_document_placeholders`, `create_pdf_document`, `read_pdf_document`, `prompt_pdf_document_signature`
+**PDF caricati** — `list_pdf_documents`, `get_pdf_document`, `list_pdf_document_signers`, `list_pdf_document_signer_placeholders`, `list_pdf_document_placeholders`, `create_pdf_document`, `extract_pdf_document_parties`, `read_pdf_document`, `prompt_pdf_document_signature`
 
 **Health** — `get_heu_health`
 
@@ -114,6 +114,7 @@ Dopo aver configurato il MCP, chiedi a Claude:
 - *"Sollecita la firma del documento 15c587e0-1715-45c6-bf72-24bcb86c0f90"*
 - *"Riassumi il contratto con id ... e dimmi qual è la durata"* (usa `read_heu_document`)
 - *"Confronta i contratti X e Y, segnalami le differenze nelle clausole"*
+- *"Estrai i dati delle parti dal contratto ... — voglio nome, codice fiscale, P.IVA, codice univoco SDI"* (usa `extract_heu_document_parties`)
 - *"Scarica il PDF del documento X con layout 220 e includi indice"*
 - *"Crea un nuovo PDF firmabile dal template 56 per mario.rossi@example.com"*
 

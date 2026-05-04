@@ -5,6 +5,14 @@ Tutte le modifiche significative a questo progetto vengono documentate in questo
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-05-04
+
+### Added
+- Nuovo tool `extract_heu_document_parties`: estrae i dati anagrafici delle parti da un documento HEU combinando metadati (firmatari, ruoli, stato firma) con dati estratti dal testo: codice fiscale, P.IVA, **codice univoco SDI**, email, PEC, luogo e data di nascita, indirizzi, CAP.
+- Nuovo tool `extract_pdf_document_parties`: equivalente per i PDF caricati.
+- Pattern regex ottimizzati per documenti italiani (CF 16 caratteri con omocodia, P.IVA 11 cifre, SDI 7 alfanumerici, varianti di etichetta come "Codice Univoco SDI", "Codice Destinatario", "C.U. Destinatario").
+- Parametro opzionale `include_text` per includere il testo grezzo nel risultato.
+
 ## [0.1.5] - 2026-05-04
 
 ### Added

@@ -90,6 +90,108 @@ def _safe_filename(name: str) -> str:
 DEFAULT_MAX_PAGES = 100
 
 
+# -------- Italian party-data extraction (regex-based) --------
+
+_RE_FISCAL_CODE = re.compile(
+    r"\b[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]\b"
+)
+_RE_VAT_LABELED = re.compile(
+    r"(?:p\.?\s*iva|partita\s*iva|vat\s*number)[\s:.\-#nº°]*([0-9]{11})\b",
+    re.IGNORECASE,
+)
+_RE_VAT_IT_PREFIX = re.compile(r"\bIT\s?([0-9]{11})\b")
+_RE_EMAIL = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
+_RE_SDI_CODE = re.compile(
+    r"(?:codice\s+(?:univoco|destinatario|sdi)(?:\s+(?:univoco|destinatario|sdi))?|c\.?u\.?\s*destinatario)[\s:.\-#]*([A-Z0-9]{7})\b",
+    re.IGNORECASE,
+)
+_RE_PEC_LABELED = re.compile(
+    r"(?:pec|posta\s*elettronica\s*certificata)[\s:.\-]*([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})",
+    re.IGNORECASE,
+)
+_RE_BIRTH = re.compile(
+    r"nat[oaie]\s+(?:a|in)?\s*([A-ZÀ-Ý][\wÀ-ÿ'\s.\-]{1,40}?)\s*(?:\(([A-Z]{2})\))?\s+il\s+("
+    r"\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}"
+    r"|\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+\d{2,4}"
+    r")",
+    re.IGNORECASE,
+)
+_RE_ADDRESS = re.compile(
+    r"\b(?:via|viale|piazza|piazzale|corso|largo|vicolo|strada(?:\s+statale|\s+provinciale)?|loc(?:alit[àa])?\.?)\s+[A-ZÀ-Ý0-9][^,;\n\r]{2,90}",
+    re.IGNORECASE,
+)
+_RE_CAP = re.compile(r"\b\d{5}\b")
+
+
+def _norm_seq(values):
+    seen = []
+    out = []
+    for v in values:
+        key = v.upper() if isinstance(v, str) else v
+        if key not in seen:
+            seen.append(key)
+            out.append(v)
+    return out
+
+
+def _extract_parties_from_text(text: str) -> dict:
+    """Apply Italian regex patterns to extract structured party data from a contract."""
+    if not text:
+        return {
+            "fiscal_codes": [],
+            "vat_numbers": [],
+            "sdi_codes": [],
+            "emails": [],
+            "pec_emails": [],
+            "birth_info": [],
+            "addresses": [],
+            "postal_codes": [],
+        }
+
+    fiscal_codes = _norm_seq(m.group(0).upper() for m in _RE_FISCAL_CODE.finditer(text))
+
+    vat_numbers: list[str] = []
+    for m in _RE_VAT_LABELED.finditer(text):
+        vat_numbers.append(m.group(1))
+    for m in _RE_VAT_IT_PREFIX.finditer(text):
+        vat_numbers.append(m.group(1))
+    vat_numbers = _norm_seq(vat_numbers)
+
+    sdi_codes = _norm_seq(m.group(1).upper() for m in _RE_SDI_CODE.finditer(text))
+
+    emails = _norm_seq(m.group(0).lower() for m in _RE_EMAIL.finditer(text))
+    pec_emails = _norm_seq(m.group(1).lower() for m in _RE_PEC_LABELED.finditer(text))
+
+    birth_info = []
+    for m in _RE_BIRTH.finditer(text):
+        place = m.group(1).strip(" .,'\"") if m.group(1) else None
+        province = m.group(2) or None
+        date = m.group(3).strip() if m.group(3) else None
+        entry = {"place": place, "province": province, "date": date}
+        if entry not in birth_info:
+            birth_info.append(entry)
+
+    addresses = []
+    for m in _RE_ADDRESS.finditer(text):
+        candidate = m.group(0).strip(" ,;.")
+        candidate = re.sub(r"\s+", " ", candidate)
+        if candidate and candidate not in addresses:
+            addresses.append(candidate)
+
+    postal_codes = _norm_seq(m.group(0) for m in _RE_CAP.finditer(text))
+
+    return {
+        "fiscal_codes": fiscal_codes,
+        "vat_numbers": vat_numbers,
+        "sdi_codes": sdi_codes,
+        "emails": emails,
+        "pec_emails": pec_emails,
+        "birth_info": birth_info,
+        "addresses": addresses,
+        "postal_codes": postal_codes,
+    }
+
+
 def _parse_pages_spec(spec: str, total_pages: int) -> list[int]:
     """Parse '1-3', '5', '1,3,5', '1-3,7' into a sorted list of page numbers (1-indexed).
 
@@ -267,6 +369,31 @@ async def list_tools():
             },
         ),
         Tool(
+            name="extract_heu_document_parties",
+            description=(
+                "Estrae i dati anagrafici delle parti da un documento HEU. "
+                "Combina i metadati registrati (firmatari, ruoli, stato firma) con dati estratti "
+                "dal testo del contratto: codice fiscale, P.IVA, codice univoco SDI, email/PEC, "
+                "luogo e data di nascita, indirizzi, CAP. "
+                "Pattern ottimizzati per contratti italiani."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "document_id": {"type": "string", "description": "ID del documento HEU"},
+                    "pages": {
+                        "type": "string",
+                        "description": "Range pagine: '1-3', '5', '1,3,5-7'. Default: tutte (max 100). Le 'parti' sono spesso in pagina 1-2.",
+                    },
+                    "include_text": {
+                        "type": "boolean",
+                        "description": "Se true include nel risultato anche il testo grezzo (utile per ulteriore analisi). Default: false.",
+                    },
+                },
+                "required": ["document_id"],
+            },
+        ),
+        Tool(
             name="read_heu_document",
             description=(
                 "Legge il contenuto testuale di un documento HEU senza salvarlo su disco. "
@@ -414,6 +541,30 @@ async def list_tools():
             },
         ),
         Tool(
+            name="extract_pdf_document_parties",
+            description=(
+                "Estrae i dati anagrafici delle parti da un PDF caricato. "
+                "Combina i metadati dei firmatari registrati con dati estratti dal testo: "
+                "codice fiscale, P.IVA, codice univoco SDI, email/PEC, luogo e data di nascita, indirizzi, CAP. "
+                "Pattern ottimizzati per contratti italiani."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "document_id": {"type": "string", "description": "ID del PDF caricato"},
+                    "pages": {
+                        "type": "string",
+                        "description": "Range pagine: '1-3', '5', '1,3,5-7'. Default: tutte (max 100).",
+                    },
+                    "include_text": {
+                        "type": "boolean",
+                        "description": "Se true include nel risultato anche il testo grezzo. Default: false.",
+                    },
+                },
+                "required": ["document_id"],
+            },
+        ),
+        Tool(
             name="read_pdf_document",
             description=(
                 "Legge il contenuto testuale di un PDF caricato senza salvarlo su disco. "
@@ -516,6 +667,126 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 retry = headers.get("retry-after")
                 hint = f"Sollecito già inviato di recente. Riprova tra {retry}s." if retry else "Sollecito già inviato di recente. Limite 1/24h."
             return _err(status, body, hint=hint)
+
+        if name == "extract_heu_document_parties":
+            doc_id = arguments["document_id"]
+            include_text = bool(arguments.get("include_text"))
+
+            # 1) Document metadata (registered parties: members, owner, editors, status)
+            meta_status, meta_body, _h = _request("GET", f"/documents/{doc_id}")
+            registered_parties = []
+            doc_metadata = None
+            if meta_status == 200 and isinstance(meta_body, dict):
+                data = meta_body.get("data", meta_body) or {}
+                doc_metadata = {
+                    "name": data.get("name"),
+                    "status": data.get("status"),
+                    "owner": data.get("owner"),
+                    "created": data.get("created"),
+                    "updated": data.get("updated"),
+                }
+                for member in (data.get("members") or []):
+                    registered_parties.append({
+                        "source": "members",
+                        "email": member.get("email"),
+                        "role": member.get("role"),
+                        "has_signed": member.get("has_signed"),
+                        "signed_at": member.get("signed_at"),
+                    })
+                for editor in (data.get("editors") or []):
+                    if not any(p.get("email") == editor for p in registered_parties):
+                        registered_parties.append({"source": "editors", "email": editor, "role": "editor"})
+
+            # 2) Document body text
+            status, body, _h = _request("POST", f"/documents/{doc_id}/download", timeout=DOWNLOAD_TIMEOUT)
+            if status != 200 or not isinstance(body, (bytes, bytearray)):
+                return _err(status, body, hint="Impossibile scaricare il PDF per l'estrazione testo.")
+            try:
+                pdf_result = _extract_pdf_text(bytes(body), arguments.get("pages"))
+            except ValueError as e:
+                return _err(400, str(e), hint="Errore nel parametro 'pages'.")
+            except Exception as e:
+                return _err(500, f"Errore estrazione testo: {e}")
+
+            extracted = _extract_parties_from_text(pdf_result["text"])
+
+            payload = {
+                "document_id": doc_id,
+                "document_metadata": doc_metadata,
+                "registered_parties": registered_parties,
+                "extracted_from_text": extracted,
+                "pages_total": pdf_result["pages_total"],
+                "pages_extracted": pdf_result["pages_extracted"],
+                "truncated": pdf_result["truncated"],
+            }
+            if include_text:
+                payload["raw_text"] = pdf_result["text"]
+            return _ok(payload)
+
+        if name == "extract_pdf_document_parties":
+            doc_id = arguments["document_id"]
+            include_text = bool(arguments.get("include_text"))
+
+            # 1) PDF metadata + signers
+            doc_metadata = None
+            registered_parties = []
+            meta_status, meta_body, _h = _request("GET", f"/pdfs/{doc_id}")
+            if meta_status == 200 and isinstance(meta_body, dict):
+                data = meta_body.get("data", meta_body) or {}
+                doc_metadata = {
+                    "name": data.get("name"),
+                    "status": data.get("status"),
+                    "signature_type": data.get("signature_type"),
+                    "created_at": data.get("created_at"),
+                    "updated_at": data.get("updated_at"),
+                }
+
+            sgn_status, sgn_body, _h = _request("GET", f"/pdfs/{doc_id}/signers")
+            if sgn_status == 200 and isinstance(sgn_body, dict):
+                for s in (sgn_body.get("data") or []):
+                    registered_parties.append({
+                        "source": "signers",
+                        "id": s.get("id"),
+                        "full_name": s.get("full_name"),
+                        "email": s.get("email"),
+                        "has_read": s.get("has_read"),
+                        "has_signed": s.get("has_signed"),
+                    })
+
+            # 2) PDF body text via the documents/{id}/download endpoint
+            status, body, _h = _request("POST", f"/documents/{doc_id}/download", timeout=DOWNLOAD_TIMEOUT)
+            extracted = None
+            text_warning = None
+            pdf_result = None
+            if status == 200 and isinstance(body, (bytes, bytearray)):
+                try:
+                    pdf_result = _extract_pdf_text(bytes(body), arguments.get("pages"))
+                    extracted = _extract_parties_from_text(pdf_result["text"])
+                except ValueError as e:
+                    return _err(400, str(e), hint="Errore nel parametro 'pages'.")
+                except Exception as e:
+                    text_warning = f"Errore estrazione testo: {e}"
+            else:
+                text_warning = (
+                    "Download del contenuto del PDF non disponibile (l'API HEU per i PDF caricati "
+                    "potrebbe non supportare il download diretto). Restituiti solo i metadati."
+                )
+
+            payload = {
+                "document_id": doc_id,
+                "document_metadata": doc_metadata,
+                "registered_parties": registered_parties,
+                "extracted_from_text": extracted,
+            }
+            if pdf_result:
+                payload["pages_total"] = pdf_result["pages_total"]
+                payload["pages_extracted"] = pdf_result["pages_extracted"]
+                payload["truncated"] = pdf_result["truncated"]
+                if include_text:
+                    payload["raw_text"] = pdf_result["text"]
+            if text_warning:
+                payload["text_extraction_warning"] = text_warning
+            return _ok(payload)
 
         if name == "read_heu_document":
             doc_id = arguments["document_id"]

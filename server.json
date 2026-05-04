@@ -1,17 +1,17 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.lucavisconti211-debug/heu-mcp",
-  "description": "HEU Legal e-signature MCP. Manage native HEU documents and uploaded PDFs, prompt signers, download signed PDFs.",
+  "description": "HEU Legal e-signature MCP: manage HEU documents and PDFs, prompt signers, download PDFs.",
   "repository": {
     "url": "https://github.com/lucavisconti211-debug/heu-mcp",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "heu-mcp",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "transport": {
         "type": "stdio"
       },

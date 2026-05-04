@@ -5,6 +5,11 @@ Tutte le modifiche significative a questo progetto vengono documentate in questo
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-05-04
+
+### Added
+- Marker `mcp-name` nel README per la verifica di ownership richiesta dal MCP Registry ufficiale.
+
 ## [0.1.1] - 2026-05-04
 
 ### Fixed

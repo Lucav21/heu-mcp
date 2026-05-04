@@ -1,3 +1,4 @@
+bin/mcp-publisher
 __pycache__/
 *.py[cod]
 *$py.class

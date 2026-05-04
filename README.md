@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.lucavisconti211-debug/heu-mcp -->
+
 # HEU Legal MCP Server
 
 [![PyPI](https://img.shields.io/pypi/v/heu-mcp.svg)](https://pypi.org/project/heu-mcp/)

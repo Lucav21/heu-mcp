@@ -1,4 +1,4 @@
-<!-- mcp-name: io.github.lucav21/heu-mcp -->
+<!-- mcp-name: io.github.Lucav21/heu-mcp -->
 
 # HEU Legal MCP Server
 

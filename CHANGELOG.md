@@ -5,6 +5,11 @@ Tutte le modifiche significative a questo progetto vengono documentate in questo
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-05-04
+
+### Fixed
+- Corretto il case del namespace MCP Registry: `io.github.Lucav21/heu-mcp` (case-match con l'username GitHub canonical, richiesto dal registry).
+
 ## [0.1.3] - 2026-05-04
 
 ### Changed

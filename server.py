@@ -295,14 +295,33 @@ async def list_tools():
         # ---------- DOCUMENTS (native HEU) ----------
         Tool(
             name="list_heu_documents",
-            description="Lista documenti/template nativi HEU con filtri opzionali.",
+            description=(
+                "Lista documenti/template nativi HEU con filtri opzionali. "
+                "IMPORTANTE: quando filtri per intervallo di date passa SEMPRE entrambi i parametri "
+                "'created_from' e 'created_to' insieme, altrimenti l'API potrebbe non restituire "
+                "tutti i documenti del periodo. Se vuoi tutti i documenti senza limiti di data, "
+                "ometti entrambi."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "type": {"type": "string", "enum": ["document", "template"], "description": "Filtra per tipo"},
                     "sort": {"type": "string", "enum": ["asc", "desc"], "description": "Ordinamento per data"},
-                    "created_from": {"type": "string", "description": "Data inizio (ISO 8601, es. 2025-01-01T00:00:00Z)"},
-                    "created_to": {"type": "string", "description": "Data fine (ISO 8601)"},
+                    "created_from": {
+                        "type": "string",
+                        "description": (
+                            "Data inizio del filtro (ISO 8601, es. 2025-01-01T00:00:00Z). "
+                            "USA SEMPRE INSIEME a 'created_to': passare solo una delle due date "
+                            "può far escludere documenti dal risultato."
+                        ),
+                    },
+                    "created_to": {
+                        "type": "string",
+                        "description": (
+                            "Data fine del filtro (ISO 8601, es. 2025-01-31T23:59:59Z). "
+                            "USA SEMPRE INSIEME a 'created_from'."
+                        ),
+                    },
                     "have_editors_signed": {"type": "boolean", "description": "Filtra per: tutti gli editor hanno firmato"},
                 },
             },

@@ -5,6 +5,11 @@ Tutte le modifiche significative a questo progetto vengono documentate in questo
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-05-04
+
+### Changed
+- `list_heu_documents`: chiarito nella description del tool e dei parametri che `created_from` e `created_to` devono essere passati **insieme**. Passare solo una delle due date può far sì che l'API HEU non restituisca tutti i documenti del periodo. Per "tutti i documenti senza limiti di data" basta omettere entrambe.
+
 ## [0.1.6] - 2026-05-04
 
 ### Added
